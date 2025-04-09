@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Response Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f9;
+            color: #333;
+        }
+
+        h1, h2 {
+            color: #007bff;
+        }
+
+        /* Sidebar Menu */
+        #sidebar {
+            width: 250px;
+            background: #2c3e50;
+            color: #fff;
+            position: fixed;
+            height: 100%;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        #sidebar.collapsed {
+            transform: translateX(-250px);
+        }
+
+        #sidebar h2 {
+            margin-top: 0;
+            font-size: 24px;
+        }
+
+        #sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #sidebar ul li {
+            margin: 15px 0;
+        }
+
+        #sidebar ul li a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 18px;
+            transition: color 0.3s ease;
+        }
+
+        #sidebar ul li a:hover {
+            color: #007bff;
+        }
+
+        /* Main Content */
+        #main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+
+        #main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* Menu Button */
+        #menu-button {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            border-radius: 5px;
+        }
+
+        /* Dashboard Sections */
+        .section {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Map Section */
+        #map {
+            height: 500px;
+            border-radius: 10px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .controls button, .controls select {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .controls button {
+            background: #007bff;
+            color: white;
+            transition: background 0.3s ease;
+        }
+
+        .controls button:hover {
+            background: #0056b3;
+        }
+
+        .controls select {
+            background: #fff;
+            border: 1px solid #ccc;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            margin: 10px;
+            font-size: 16px;
+            color: #007bff;
+        }
+
+        /* Chart Section */
+        #chart-section {
+            margin-top: 20px;
+        }
+
+        #chart {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Menu Button -->
+    <button id="menu-button">☰</button>
+
+    <!-- Sidebar Menu -->
+    <div id="sidebar">
+        <h2>Dashboard</h2>
+        <ul>
+            <li><a href="#map-section">Map</a></li>
+            <li><a href="#stats-section">Statistics</a></li>
+            <li><a href="#chart-section">Chart</a></li>
+            <li><a href="#about-section">About</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content">
+        <!-- Map Section -->
+        <div id="map-section" class="section">
+            <h1>Emergency Response Map</h1>
+            <div class="controls">
+                <button id="showHeatmap">Show Heatmap</button>
+                <button id="hideHeatmap">Hide Heatmap</button>
+                <button id="showAccidents">Show Accidents</button>
+                <button id="hideAccidents">Hide Accidents</button>
+                <button id="showOptimalLocations">Show Optimal Locations</button>
+                <button id="hideOptimalLocations">Hide Optimal Locations</button>
+                <label for="categoryFilter">Filter by Category:</label>
+                <select id="categoryFilter">
+                    <option value="">All</option>
+                    <option value="1">Accident with fatalities</option>
+                    <option value="2">Accident with serious injuries</option>
+                    <option value="3">Accident with minor injuries</option>
+                </select>
+                <div class="loading-spinner" id="loadingSpinner">Loading...</div>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div id="stats-section" class="section">
+            <h2>Key Statistics</h2>
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>5695</h3>
+                    <p>Total Accidents</p>
+                </div>
+                <div class="stat-card">
+                    <h3>39</h3>
+                    <p>Optimal Locations</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div id="chart-section" class="section">
+            <h2>Accidents by Land Use</h2>
+            <canvas id="accidentsByLanduseChart"></canvas>
+        </div>
+
+        <!-- About Section -->
+        <div id="about-section" class="section">
+            <h2>About This Dashboard</h2>
+            <p>
+                This Emergency Response Dashboard provides real-time insights into accidents and optimal response locations.
+                Use the interactive map to explore accident hotspots and view key statistics.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([51.96, 7.62], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+
+        // Layer groups
+        var layers = {
+            heatmap: null, // Heatmap layer
+            accidents: L.layerGroup().addTo(map),
+            optimal: L.layerGroup().addTo(map),
+            roads: L.layerGroup(),
+            landuse: L.layerGroup(),
+            populationDensity: L.layerGroup(),
+            route: L.layerGroup().addTo(map)
+        };
+
+        // Layer control
+        var layerControl = L.control.layers(null, {
+            "Roads": layers.roads,
+            "Land Use": layers.landuse,
+            "Population Density": layers.populationDensity
+        }).addTo(map);
+
+        // Function to fetch GeoJSON data and add to a layer
+        function fetchGeoJSON(url, layer, options = {}) {
+            showLoading();
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    layer.clearLayers();
+                    L.geoJSON(data, options).addTo(layer);
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                    hideLoading();
+                });
+        }
+
+        // Fetch and display heatmap
+        function fetchHeatmap() {
+            showLoading();
+            fetch('http://127.0.0.1:5000/api/heatmap')
+                .then(response => response.json())
+                .then(data => {
+                    if (layers.heatmap) {
+                        map.removeLayer(layers.heatmap);
+                    }
+                    layers.heatmap = L.heatLayer(data, { radius: 25 }).addTo(map);
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error("Error fetching heatmap data:", error);
+                    hideLoading();
+                });
+        }
+
+        // Hide heatmap
+        function hideHeatmap() {
+            if (layers.heatmap) {
+                map.removeLayer(layers.heatmap);
+                layers.heatmap = null;
+            }
+        }
+
+        // Fetch and display accidents
+        function fetchAccidents() {
+            const category = document.getElementById('categoryFilter').value;
+            const url = category ? `http://127.0.0.1:5000/api/accidents?category=${category}` : 'http://127.0.0.1:5000/api/accidents';
+            
+            fetchGeoJSON(url, layers.accidents, {
+                pointToLayer: (feature, latlng) => {
+                    return L.circleMarker(latlng, {
+                        radius: 5,
+                        fillColor: "#FF0000", // Red for all accidents
+                        color: "#000",
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: (feature, layer) => {
+                    const category = feature.properties.category;
+                    let categoryName;
+                    switch (category) {
+                        case '1':
+                            categoryName = "Accident with fatalities";
+                            break;
+                        case '2':
+                            categoryName = "Accident with serious injuries";
+                            break;
+                        case '3':
+                            categoryName = "Accident with minor injuries";
+                            break;
+                        default:
+                            categoryName = "Unknown category";
+                    }
+                    layer.bindPopup(`Accident ID: ${feature.properties.id}<br>Category: ${categoryName}`);
+                }
+            });
+        }
+
+        // Hide accidents
+        function hideAccidents() {
+            layers.accidents.clearLayers();
+        }
+
+        // Fetch and display optimal locations
+        function fetchOptimalLocations() {
+            fetchGeoJSON('http://127.0.0.1:5000/api/optimal_locations', layers.optimal, {
+                pointToLayer: (feature, latlng) => L.marker(latlng, {
+                    icon: L.icon({
+                        iconUrl: 'data/hospital.png', 
+                        iconSize: [30, 30]
+                    })
+                }),
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup("Optimal Location");
+                }
+            });
+        }
+
+        // Hide optimal locations
+        function hideOptimalLocations() {
+            layers.optimal.clearLayers();
+        }
+
+        // Fetch and display roads
+        function fetchRoads() {
+            fetchGeoJSON('http://127.0.0.1:5000/api/layers?type=roads', layers.roads, {
+                style: { color: '#808080', weight: 2 }
+            });
+        }
+
+        // Fetch and display land use
+        function fetchLanduse() {
+            fetchGeoJSON('http://127.0.0.1:5000/api/layers?type=landuse', layers.landuse, {
+                style: (feature) => {
+                    const fclass = feature.properties.fclass;
+                    const colorMap = {
+                        'residential': '#FFC0CB',
+                        'commercial': '#FFA500',
+                        'industrial': '#808080',
+                        'agricultural': '#7CFC00',
+                        'forest': '#228B22',
+                        'water': '#0000FF'
+                    };
+                    return { color: colorMap[fclass] || '#000000', weight: 2, fillOpacity: 0.5 };
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(`Land Use: ${feature.properties.fclass}`);
+                }
+            });
+        }
+
+        // Fetch and display population density
+        function fetchPopulationDensity() {
+            fetchGeoJSON('http://127.0.0.1:5000/api/layers?type=population_density', layers.populationDensity, {
+                style: (feature) => {
+                    const density = feature.properties.density;
+                    const color = density > 1000 ? '#FF0000' : density > 500 ? '#FFA500' : '#00FF00';
+                    return { color, weight: 2, fillOpacity: 0.5 };
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(`Population Density: ${feature.properties.density}`);
+                }
+            });
+        }
+
+        // Handle map clicks to calculate routes
+        map.on('click', function(e) {
+            const startLat = e.latlng.lat;
+            const startLon = e.latlng.lng;
+            console.log("Clicked coordinates:", startLat, startLon);
+
+            showLoading();
+            fetch(`http://127.0.0.1:5000/api/route_to_nearest_optimal?start_lat=${startLat}&start_lon=${startLon}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Failed to fetch route");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Route data:", data);
+                    layers.route.clearLayers();
+
+                    // Display the route on the map
+                    L.geoJSON(data.geometry, {
+                        style: { color: "blue", weight: 5, opacity: 0.7 }
+                    }).addTo(layers.route);
+
+                    // Add a marker for the start point
+                    L.marker([startLat, startLon]).addTo(layers.route).bindPopup("Start Point");
+
+                    // Display the duration in a popup
+                    const duration = data.properties.duration; // Duration in seconds
+                    const durationMinutes = Math.floor(duration / 60); // Convert to minutes
+                    const durationSeconds = Math.floor(duration % 60); // Remaining seconds
+
+                    L.popup()
+                        .setLatLng([startLat, startLon])
+                        .setContent(`Estimated travel time: ${durationMinutes} minutes ${durationSeconds} seconds`)
+                        .openOn(map);
+
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error("Error fetching route:", error);
+                    hideLoading();
+                    alert("Failed to calculate route. Please try again.");
+                });
+        });
+
+        // Loading spinner functions
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // Event listeners for buttons
+        document.getElementById('showHeatmap').addEventListener('click', fetchHeatmap);
+        document.getElementById('hideHeatmap').addEventListener('click', hideHeatmap);
+        document.getElementById('showAccidents').addEventListener('click', fetchAccidents);
+        document.getElementById('hideAccidents').addEventListener('click', hideAccidents);
+        document.getElementById('showOptimalLocations').addEventListener('click', fetchOptimalLocations);
+        document.getElementById('hideOptimalLocations').addEventListener('click', hideOptimalLocations);
+
+        // Fetch roads, land use, and population density on page load
+        fetchRoads();
+        fetchLanduse();
+        fetchPopulationDensity();
+
+        // Fetch and display accidents by land use
+        function fetchAccidentsByLanduse() {
+            showLoading();
+            fetch('http://127.0.0.1:5000/api/accidents_by_landuse')
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = document.getElementById('accidentsByLanduseChart').getContext('2d');
+                    if (window.accidentsChart) window.accidentsChart.destroy();
+                    window.accidentsChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: data.map(d => d.landuse_type),
+                            datasets: [{
+                                label: 'Accidents by Land Use',
+                                data: data.map(d => d.accident_count),
+                                backgroundColor: ['#FF5733', '#33FF57', '#3380FF', '#FFD700', '#A020F0'],
+                                borderColor: '#000',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: { scales: { y: { beginAtZero: true } } }
+                    });
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error("Error fetching accidents by land use:", error);
+                    hideLoading();
+                });
+        }
+
+        // Fetch accidents by land use on page load
+        fetchAccidentsByLanduse();
+
+        // Toggle sidebar
+        document.getElementById('menu-button').addEventListener('click', function() {
+            var sidebar = document.getElementById('sidebar');
+            var mainContent = document.getElementById('main-content');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+    </script>
+</body>
+</html>
